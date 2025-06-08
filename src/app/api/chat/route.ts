@@ -41,6 +41,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Initialize OpenAI client
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+
     const systemPrompt = await getSystemPrompt();
 
     // Prepare the messages array
