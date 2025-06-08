@@ -43,6 +43,17 @@ export const Whiteboard = () => {
     // Add state for chat popup
     const [isChatOpen, setIsChatOpen] = useState(false);
 
+    // File input ref for import functionality
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Touch/pinch state for mobile zoom
+    const [touchState, setTouchState] = useState<{
+        touches: React.Touch[];
+        initialDistance: number;
+        initialZoom: number;
+        center: Point;
+    } | null>(null);
+
     const {
         state,
         activeTool,
@@ -55,18 +66,21 @@ export const Whiteboard = () => {
         updateElement,
         removeElement,
         clearCanvas,
+        updateViewBox,
         zoomIn,
         zoomOut,
         resetView,
         pan,
         screenToCanvas,
-        saveToHistory,
         undo,
         redo,
         canUndo,
         canRedo,
         currentStyles,
         updateCurrentStyles,
+        exportToJSON,
+        importFromJSON,
+        exportToPNG,
     } = useWhiteboard();
 
     const generateId = () => {
@@ -75,6 +89,48 @@ export const Whiteboard = () => {
         const random = Math.random().toString(36).substring(2, 7);
         return `${timestamp}-${random}`;
     };
+
+    // Handle export to JSON
+    const handleExportJSON = useCallback(() => {
+        exportToJSON();
+    }, [exportToJSON]);
+
+    // Handle export to PNG
+    const handleExportPNG = useCallback(() => {
+        exportToPNG();
+    }, [exportToPNG]);
+
+    // Handle import from JSON
+    const handleImportJSON = useCallback(() => {
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    }, []);
+
+    // Handle file selection for import
+    const handleFileSelect = useCallback(
+        async (event: React.ChangeEvent<HTMLInputElement>) => {
+            const file = event.target.files?.[0];
+            if (file) {
+                try {
+                    await importFromJSON(file);
+                    // Clear the file input so the same file can be selected again
+                    if (fileInputRef.current) {
+                        fileInputRef.current.value = "";
+                    }
+                } catch (error) {
+                    alert(
+                        `Failed to import whiteboard: ${
+                            error instanceof Error
+                                ? error.message
+                                : "Unknown error"
+                        }`
+                    );
+                }
+            }
+        },
+        [importFromJSON]
+    );
 
     const getTextElementBounds = useCallback((textEl: TextElement) => {
         const width = textEl.width || Math.max(textEl.content.length * 8, 100);
@@ -360,6 +416,14 @@ export const Whiteboard = () => {
             }) as TextElement | undefined;
 
             if (clickedTextElement) {
+                // Clear placeholder text when starting to edit
+                if (clickedTextElement.content === "Double-click to edit") {
+                    updateElement(
+                        clickedTextElement.id,
+                        { content: "" },
+                        false
+                    );
+                }
                 setEditingTextId(clickedTextElement.id);
                 setSelectedElementId(clickedTextElement.id);
             }
@@ -398,6 +462,12 @@ export const Whiteboard = () => {
                     case "r":
                         event.preventDefault();
                         setActiveTool("line");
+                        break;
+                    case "m":
+                        event.preventDefault();
+                        // Toggle toolbar collapsed state
+                        // We need to access the toolbar's state somehow
+                        // For now, we'll add this functionality to the Toolbar component
                         break;
                 }
             }
@@ -448,14 +518,35 @@ export const Whiteboard = () => {
                         event.preventDefault();
                         resetView();
                         break;
+                    case "e":
+                        event.preventDefault();
+                        if (event.shiftKey) {
+                            // Cmd+Shift+E for export PNG (if implemented)
+                            // TODO: Add PNG export functionality
+                        } else {
+                            // Cmd+E for export JSON
+                            handleExportJSON();
+                        }
+                        break;
+                    case "i":
+                        event.preventDefault();
+                        // Cmd+I for import JSON
+                        handleImportJSON();
+                        break;
                 }
             }
 
-            // Delete key
-            if (event.key === "Delete" && selectedElementId && !editingTextId) {
+            // Delete key (Delete, Backspace, or X for Blender users)
+            if (
+                (event.key === "Delete" ||
+                    event.key === "Backspace" ||
+                    event.key.toLowerCase() === "x") &&
+                selectedElementId &&
+                !editingTextId
+            ) {
+                event.preventDefault(); // Prevent browser back navigation on Backspace
                 removeElement(selectedElementId);
                 setSelectedElementId(null);
-                saveToHistory();
             }
 
             // Escape to cancel text editing
@@ -471,7 +562,6 @@ export const Whiteboard = () => {
         removeElement,
         redo,
         resetView,
-        saveToHistory,
         selectedElementId,
         setActiveTool,
         setEditingTextId,
@@ -529,10 +619,14 @@ export const Whiteboard = () => {
                     resizeStartBounds.height + deltaY
                 );
 
-                updateElement(selectedElementId, {
-                    width: newWidth,
-                    height: newHeight,
-                });
+                updateElement(
+                    selectedElementId,
+                    {
+                        width: newWidth,
+                        height: newHeight,
+                    },
+                    false
+                ); // Don't save history during resize
                 return;
             }
 
@@ -547,9 +641,13 @@ export const Whiteboard = () => {
                         y: canvasPos.y - dragOffset.y,
                     };
                     const snappedPos = applyGridSnapping(newPos);
-                    updateElement(draggedElement, {
-                        position: snappedPos,
-                    });
+                    updateElement(
+                        draggedElement,
+                        {
+                            position: snappedPos,
+                        },
+                        false
+                    ); // Don't save history during drag
                 } else if (
                     element &&
                     (element.type === "line" || element.type === "arrow")
@@ -558,13 +656,21 @@ export const Whiteboard = () => {
                     const snappedPos = applyGridSnapping(canvasPos);
 
                     if (draggedLinePoint === "start") {
-                        updateElement(draggedElement, {
-                            start: snappedPos,
-                        });
+                        updateElement(
+                            draggedElement,
+                            {
+                                start: snappedPos,
+                            },
+                            false
+                        ); // Don't save history during drag
                     } else if (draggedLinePoint === "end") {
-                        updateElement(draggedElement, {
-                            end: snappedPos,
-                        });
+                        updateElement(
+                            draggedElement,
+                            {
+                                end: snappedPos,
+                            },
+                            false
+                        ); // Don't save history during drag
                     } else if (draggedLinePoint === "body") {
                         // Move both points by the same offset
                         const deltaX =
@@ -581,10 +687,14 @@ export const Whiteboard = () => {
                             y: lineEl.end.y + deltaY,
                         });
 
-                        updateElement(draggedElement, {
-                            start: newStart,
-                            end: newEnd,
-                        });
+                        updateElement(
+                            draggedElement,
+                            {
+                                start: newStart,
+                                end: newEnd,
+                            },
+                            false
+                        ); // Don't save history during drag
                     }
                 }
                 return;
@@ -664,6 +774,8 @@ export const Whiteboard = () => {
                     content: "Double-click to edit",
                 };
                 addElement(finalTextElement);
+                // Clear placeholder text when starting to edit new text box
+                updateElement(finalTextElement.id, { content: "" }, false);
                 setEditingTextId(finalTextElement.id);
                 setSelectedElementId(finalTextElement.id);
             }
@@ -675,10 +787,27 @@ export const Whiteboard = () => {
 
         if (isResizing) {
             setIsResizing(false);
+            // Save history after resize operation completes
+            if (selectedElementId) {
+                // Trigger a history save by updating the element with current state
+                const element = state.elements.find(
+                    (el) => el.id === selectedElementId
+                );
+                if (element) {
+                    updateElement(selectedElementId, {}, true); // Save history
+                }
+            }
             return;
         }
 
         if (draggedElement) {
+            // Save history after drag operation completes
+            const element = state.elements.find(
+                (el) => el.id === draggedElement
+            );
+            if (element) {
+                updateElement(draggedElement, {}, true); // Save history
+            }
             setDraggedElement(null);
             setDragOffset({ x: 0, y: 0 });
             setDraggedLinePoint(null);
@@ -720,25 +849,135 @@ export const Whiteboard = () => {
             event.preventDefault();
             if (!svgRef.current) return;
 
-            const rect = svgRef.current.getBoundingClientRect();
-            // Calculate the cursor position in canvas coordinates
-            const cursorPoint = {
-                x:
-                    state.viewBox.x +
-                    (event.clientX - rect.left) / state.viewBox.zoom,
-                y:
-                    state.viewBox.y +
-                    (event.clientY - rect.top) / state.viewBox.zoom,
-            };
+            // Check if this is a pinch gesture (ctrlKey is set for pinch on trackpads)
+            if (event.ctrlKey) {
+                // Pinch to zoom
+                const rect = svgRef.current.getBoundingClientRect();
+                const cursorPoint = {
+                    x:
+                        state.viewBox.x +
+                        (event.clientX - rect.left) / state.viewBox.zoom,
+                    y:
+                        state.viewBox.y +
+                        (event.clientY - rect.top) / state.viewBox.zoom,
+                };
 
-            if (event.deltaY < 0) {
-                zoomIn(cursorPoint);
+                if (event.deltaY < 0) {
+                    zoomIn(cursorPoint);
+                } else {
+                    zoomOut(cursorPoint);
+                }
             } else {
-                zoomOut(cursorPoint);
+                // Regular scroll - pan the canvas
+                const panSensitivity = 2; // Make scrolling 2x more sensitive as requested
+                const deltaX = -event.deltaX * panSensitivity; // Invert X direction
+                const deltaY = -event.deltaY * panSensitivity; // Invert Y direction
+                pan(deltaX, deltaY);
             }
         },
-        [zoomIn, zoomOut, state.viewBox]
+        [zoomIn, zoomOut, pan, state.viewBox]
     );
+
+    // Helper function to calculate distance between two touches
+    const getTouchDistance = useCallback(
+        (touch1: React.Touch, touch2: React.Touch): number => {
+            const dx = touch1.clientX - touch2.clientX;
+            const dy = touch1.clientY - touch2.clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        },
+        []
+    );
+
+    // Helper function to get center point between two touches
+    const getTouchCenter = useCallback(
+        (touch1: React.Touch, touch2: React.Touch): Point => {
+            return {
+                x: (touch1.clientX + touch2.clientX) / 2,
+                y: (touch1.clientY + touch2.clientY) / 2,
+            };
+        },
+        []
+    );
+
+    // Touch start handler for pinch-to-zoom
+    const handleTouchStart = useCallback(
+        (event: React.TouchEvent) => {
+            if (event.touches.length === 2) {
+                // Two finger touch - start pinch gesture
+                event.preventDefault();
+                const touch1 = event.touches[0];
+                const touch2 = event.touches[1];
+                const distance = getTouchDistance(touch1, touch2);
+                const center = getTouchCenter(touch1, touch2);
+
+                setTouchState({
+                    touches: Array.from(event.touches),
+                    initialDistance: distance,
+                    initialZoom: state.viewBox.zoom,
+                    center,
+                });
+            }
+        },
+        [getTouchDistance, getTouchCenter, state.viewBox.zoom]
+    );
+
+    // Touch move handler for pinch-to-zoom
+    const handleTouchMove = useCallback(
+        (event: React.TouchEvent) => {
+            if (event.touches.length === 2 && touchState) {
+                event.preventDefault();
+                const touch1 = event.touches[0];
+                const touch2 = event.touches[1];
+                const currentDistance = getTouchDistance(touch1, touch2);
+                const currentCenter = getTouchCenter(touch1, touch2);
+
+                // Calculate zoom based on distance change
+                const scale = currentDistance / touchState.initialDistance;
+                const newZoom = Math.max(
+                    0.1,
+                    Math.min(5, touchState.initialZoom * scale)
+                );
+
+                // Convert screen center to canvas coordinates
+                if (svgRef.current) {
+                    const rect = svgRef.current.getBoundingClientRect();
+                    const canvasCenter = {
+                        x:
+                            state.viewBox.x +
+                            (currentCenter.x - rect.left) / state.viewBox.zoom,
+                        y:
+                            state.viewBox.y +
+                            (currentCenter.y - rect.top) / state.viewBox.zoom,
+                    };
+
+                    // Apply zoom with center point
+                    const zoomRatio = newZoom / state.viewBox.zoom;
+                    const newX =
+                        canvasCenter.x -
+                        (canvasCenter.x - state.viewBox.x) / zoomRatio;
+                    const newY =
+                        canvasCenter.y -
+                        (canvasCenter.y - state.viewBox.y) / zoomRatio;
+
+                    updateViewBox({ zoom: newZoom, x: newX, y: newY });
+                }
+            }
+        },
+        [
+            touchState,
+            getTouchDistance,
+            getTouchCenter,
+            state.viewBox,
+            updateViewBox,
+        ]
+    );
+
+    // Touch end handler
+    const handleTouchEnd = useCallback((event: React.TouchEvent) => {
+        if (event.touches.length < 2) {
+            setTouchState(null);
+        }
+    }, []);
 
     const renderElement = (element: WhiteboardElement) => {
         if (element.type === "text") {
@@ -992,19 +1231,59 @@ export const Whiteboard = () => {
                             textarea.scrollHeight / state.viewBox.zoom
                         );
 
-                        updateElement(editingTextId, {
-                            content: content,
-                            height: newHeight,
-                        });
+                        updateElement(
+                            editingTextId,
+                            {
+                                content: content,
+                                height: newHeight,
+                            },
+                            false
+                        ); // Don't save history during typing
 
                         // Update textarea height
                         textarea.style.height =
                             newHeight * state.viewBox.zoom + "px";
                     }}
-                    onBlur={() => setEditingTextId(null)}
+                    onBlur={() => {
+                        // Auto-delete empty text boxes when deselected
+                        if (editingTextId) {
+                            const textElement = state.elements.find(
+                                (el) => el.id === editingTextId
+                            ) as TextElement;
+                            if (
+                                textElement &&
+                                (!textElement.content ||
+                                    textElement.content.trim() === "")
+                            ) {
+                                removeElement(editingTextId);
+                                setSelectedElementId(null);
+                            } else {
+                                // Save history when text editing is finished
+                                updateElement(editingTextId, {}, true); // Save history
+                            }
+                        }
+                        setEditingTextId(null);
+                    }}
                     onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey) {
                             e.preventDefault();
+                            // Auto-delete empty text boxes when Enter is pressed
+                            if (editingTextId) {
+                                const textElement = state.elements.find(
+                                    (el) => el.id === editingTextId
+                                ) as TextElement;
+                                if (
+                                    textElement &&
+                                    (!textElement.content ||
+                                        textElement.content.trim() === "")
+                                ) {
+                                    removeElement(editingTextId);
+                                    setSelectedElementId(null);
+                                } else {
+                                    // Save history when text editing is finished
+                                    updateElement(editingTextId, {}, true); // Save history
+                                }
+                            }
                             setEditingTextId(null);
                         }
                     }}
@@ -1058,6 +1337,10 @@ export const Whiteboard = () => {
                 onUpdateElement={updateElement}
                 currentStyles={currentStyles}
                 onUpdateCurrentStyles={updateCurrentStyles}
+                onUndo={undo}
+                onRedo={redo}
+                canUndo={canUndo}
+                canRedo={canRedo}
             />
 
             {/* Main bottom toolbar */}
@@ -1094,12 +1377,9 @@ export const Whiteboard = () => {
                 }}
                 onResetView={resetView}
                 onClearCanvas={clearCanvas}
-                onUndo={undo}
-                onRedo={redo}
-                canUndo={canUndo}
-                canRedo={canRedo}
-                zoom={state.viewBox.zoom}
                 onChatOpen={() => setIsChatOpen(!isChatOpen)}
+                onExportJSON={handleExportJSON}
+                onImportJSON={handleImportJSON}
             />
 
             {/* Chat popup */}
@@ -1117,6 +1397,9 @@ export const Whiteboard = () => {
                 onMouseUp={handleMouseUp}
                 onDoubleClick={handleDoubleClick}
                 onWheel={handleWheel}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
                 onContextMenu={(e) => e.preventDefault()}
                 style={{
                     cursor: isPanning
@@ -1178,6 +1461,15 @@ export const Whiteboard = () => {
 
             {/* Text editing overlay */}
             {renderTextEditor()}
+
+            {/* Hidden file input for JSON import */}
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleFileSelect}
+                style={{ display: "none" }}
+            />
         </div>
     );
 };

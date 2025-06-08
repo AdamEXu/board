@@ -245,4 +245,8 @@ export const ICONS = {
     UNDERLINE: "underline.svg",
     MINIMIZE: "arrow.down.right.and.arrow.up.left.svg",
     MAXIMIZE: "arrow.up.left.and.arrow.down.right.svg",
+    ELLIPSIS: "ellipsis.svg",
+    EXPORT: "square.and.arrow.up.svg",
+    IMPORT: "square.and.arrow.down.svg",
+    EXPORT_PNG: "photo.badge.arrow.down.fill.svg",
 } as const;

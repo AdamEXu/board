@@ -25,6 +25,10 @@ interface ContextToolbarProps {
         lineColor: string;
     };
     onUpdateCurrentStyles?: (styleUpdates: Record<string, unknown>) => void;
+    onUndo: () => void;
+    onRedo: () => void;
+    canUndo: boolean;
+    canRedo: boolean;
 }
 
 export const ContextToolbar = ({
@@ -35,13 +39,14 @@ export const ContextToolbar = ({
     onUpdateElement,
     currentStyles,
     onUpdateCurrentStyles,
+    onUndo,
+    onRedo,
+    canUndo,
+    canRedo,
 }: ContextToolbarProps) => {
-    // Show toolbar when a tool is selected (not select tool) or when an object is selected
-    const shouldShow = activeTool !== "select" || selectedElementId !== null;
-
-    if (!shouldShow) {
-        return null;
-    }
+    // Always show toolbar for undo/redo, but show style controls only when appropriate
+    const showStyleControls =
+        activeTool !== "select" || selectedElementId !== null;
 
     const renderTextControls = () => {
         if (activeTool !== "text" && selectedElementType !== "text") {
@@ -278,8 +283,34 @@ export const ContextToolbar = ({
         <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-40 animate-in slide-in-from-top-4 duration-500">
             <div className="bg-white/20 backdrop-blur-md border border-white/30 rounded-full px-6 py-3 shadow-lg hover:shadow-xl transition-all duration-300 hover:bg-white/25">
                 <div className="flex items-center gap-4">
-                    {renderTextControls()}
-                    {renderLineControls()}
+                    {/* Undo/Redo Controls */}
+                    <div className="flex items-center gap-2">
+                        <IconButton
+                            icon={ICONS.UNDO}
+                            onClick={onUndo}
+                            disabled={!canUndo}
+                            label="Undo"
+                            shortcut={["⌘", "Z"]}
+                            size={16}
+                        />
+                        <IconButton
+                            icon={ICONS.REDO}
+                            onClick={onRedo}
+                            disabled={!canRedo}
+                            label="Redo"
+                            shortcut={["⌘", "⇧", "Z"]}
+                            size={16}
+                        />
+                    </div>
+
+                    {/* Show divider only if there are style controls */}
+                    {showStyleControls &&
+                        (renderTextControls() || renderLineControls()) && (
+                            <div className="w-px h-6 bg-white/30 opacity-60" />
+                        )}
+
+                    {showStyleControls && renderTextControls()}
+                    {showStyleControls && renderLineControls()}
                 </div>
             </div>
         </div>
