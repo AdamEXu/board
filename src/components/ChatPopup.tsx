@@ -258,12 +258,18 @@ export const ChatPopup = ({ isOpen, onClose, whiteboardState, svgRef }: ChatPopu
             console.error('Error sending message:', error);
 
             // Replace loading message with error message
+            const errorMessage = error instanceof Error
+                ? error.message.includes('API key')
+                    ? "Please configure your OpenAI API key in .env.local to use the AI assistant."
+                    : `Error: ${error.message}`
+                : "Sorry, I encountered an error. Please try again.";
+
             setMessages((prev) =>
                 prev.map((msg) =>
                     msg.id === loadingMessage.id
                         ? {
                             ...msg,
-                            content: "Sorry, I encountered an error. Please try again.",
+                            content: errorMessage,
                             isLoading: false,
                             error: true,
                         }
@@ -323,9 +329,29 @@ export const ChatPopup = ({ isOpen, onClose, whiteboardState, svgRef }: ChatPopu
                             </p>
                             {whiteboardState && whiteboardState.elements.length > 0 && (
                                 <div className="mt-3 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full inline-block">
-                                    ✓ Whiteboard context available
+                                    ✓ Whiteboard context available ({whiteboardState.elements.length} elements)
                                 </div>
                             )}
+
+                            <div className="mt-4 space-y-2">
+                                <p className="text-xs text-gray-500 font-medium">Try asking:</p>
+                                <div className="flex flex-wrap gap-1">
+                                    {[
+                                        "What's on my whiteboard?",
+                                        "Summarize my notes",
+                                        "Improve this layout",
+                                        "What's missing?"
+                                    ].map((prompt, index) => (
+                                        <button
+                                            key={index}
+                                            onClick={() => setInputValue(prompt)}
+                                            className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-full hover:bg-blue-100 transition-colors"
+                                        >
+                                            {prompt}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 ) : (
@@ -351,11 +377,16 @@ export const ChatPopup = ({ isOpen, onClose, whiteboardState, svgRef }: ChatPopu
                                 {message.isLoading ? (
                                     <div className="flex items-center gap-2">
                                         <div className="flex gap-1">
-                                            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                                            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                                         </div>
-                                        <span className="text-sm text-gray-600">Analyzing whiteboard...</span>
+                                        <span className="text-sm text-gray-600">
+                                            {whiteboardState && whiteboardState.elements.length > 0
+                                                ? "Analyzing your whiteboard..."
+                                                : "Thinking..."
+                                            }
+                                        </span>
                                     </div>
                                 ) : (
                                     message.sender === "ai" ? (
