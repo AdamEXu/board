@@ -405,158 +405,230 @@ export const useWhiteboard = () => {
     );
 
     // Export whiteboard as PNG
-    const exportToPNG = useCallback(() => {
-        // Create a temporary canvas to render the SVG
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
+    const exportToPNG = useCallback(
+        (
+            options: {
+                includeGrid?: boolean;
+                quality?: "low" | "medium" | "high";
+            } = {}
+        ) => {
+            const { includeGrid = false, quality = "high" } = options;
+            // Create a temporary canvas to render the SVG
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return;
 
-        // Set canvas size (you can adjust this for different resolutions)
-        const scale = 2; // Higher scale for better quality
-        canvas.width = 1920 * scale;
-        canvas.height = 1080 * scale;
+            // Set canvas size based on quality
+            const qualitySettings = {
+                low: { scale: 1, width: 1280, height: 720 },
+                medium: { scale: 1.5, width: 1920, height: 1080 },
+                high: { scale: 2, width: 2560, height: 1440 },
+            };
+            const { scale, width, height } = qualitySettings[quality];
+            canvas.width = width * scale;
+            canvas.height = height * scale;
 
-        // Scale the context for high DPI
-        ctx.scale(scale, scale);
+            // Scale the context for high DPI
+            ctx.scale(scale, scale);
 
-        // Set white background
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale);
+            // Set white background
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale);
 
-        // Calculate bounds of all elements to center the export
-        if (state.elements.length === 0) {
-            // If no elements, just export empty canvas
-            downloadCanvas(canvas);
-            return;
-        }
-
-        let minX = Infinity,
-            minY = Infinity,
-            maxX = -Infinity,
-            maxY = -Infinity;
-
-        state.elements.forEach((element) => {
-            if (element.type === "text") {
-                const textEl = element as TextElement;
-                minX = Math.min(minX, textEl.position.x);
-                minY = Math.min(minY, textEl.position.y - textEl.fontSize);
-                maxX = Math.max(
-                    maxX,
-                    textEl.position.x + (textEl.width || 100)
-                );
-                maxY = Math.max(
-                    maxY,
-                    textEl.position.y + (textEl.height || textEl.fontSize)
-                );
-            } else if (element.type === "line" || element.type === "arrow") {
-                const lineEl = element as LineElement | ArrowElement;
-                minX = Math.min(minX, lineEl.start.x, lineEl.end.x);
-                minY = Math.min(minY, lineEl.start.y, lineEl.end.y);
-                maxX = Math.max(maxX, lineEl.start.x, lineEl.end.x);
-                maxY = Math.max(maxY, lineEl.start.y, lineEl.end.y);
+            // Calculate bounds of all elements to center the export
+            if (state.elements.length === 0) {
+                // If no elements, just export empty canvas
+                downloadCanvas(canvas);
+                return;
             }
-        });
 
-        // Add padding
-        const padding = 50;
-        minX -= padding;
-        minY -= padding;
-        maxX += padding;
-        maxY += padding;
+            let minX = Infinity,
+                minY = Infinity,
+                maxX = -Infinity,
+                maxY = -Infinity;
 
-        // Calculate scale to fit content
-        const contentWidth = maxX - minX;
-        const contentHeight = maxY - minY;
-        const scaleX = canvas.width / scale / contentWidth;
-        const scaleY = canvas.height / scale / contentHeight;
-        const exportScale = Math.min(scaleX, scaleY, 1); // Don't scale up
-
-        // Center the content
-        const offsetX =
-            (canvas.width / scale - contentWidth * exportScale) / 2 -
-            minX * exportScale;
-        const offsetY =
-            (canvas.height / scale - contentHeight * exportScale) / 2 -
-            minY * exportScale;
-
-        // Render elements
-        state.elements.forEach((element) => {
-            ctx.save();
-            ctx.translate(offsetX, offsetY);
-            ctx.scale(exportScale, exportScale);
-
-            if (element.type === "text") {
-                const textEl = element as TextElement;
-                ctx.font = `${textEl.bold ? "bold " : ""}${
-                    textEl.italic ? "italic " : ""
-                }${textEl.fontSize}px ${textEl.fontFamily}`;
-                ctx.fillStyle = textEl.color;
-                ctx.textBaseline = "top";
-
-                const lines = textEl.content.split("\n");
-                lines.forEach((line: string, index: number) => {
-                    ctx.fillText(
-                        line,
-                        textEl.position.x,
-                        textEl.position.y -
-                            textEl.fontSize +
-                            index * textEl.fontSize * 1.2
+            state.elements.forEach((element) => {
+                if (element.type === "text") {
+                    const textEl = element as TextElement;
+                    minX = Math.min(minX, textEl.position.x);
+                    minY = Math.min(minY, textEl.position.y - textEl.fontSize);
+                    maxX = Math.max(
+                        maxX,
+                        textEl.position.x + (textEl.width || 100)
                     );
-                });
-            } else if (element.type === "line") {
-                const lineEl = element as LineElement;
-                ctx.strokeStyle = lineEl.color;
-                ctx.lineWidth = lineEl.strokeWidth;
-                ctx.beginPath();
-                ctx.moveTo(lineEl.start.x, lineEl.start.y);
-                ctx.lineTo(lineEl.end.x, lineEl.end.y);
-                ctx.stroke();
-            } else if (element.type === "arrow") {
-                const arrowEl = element as ArrowElement;
-                ctx.strokeStyle = arrowEl.color;
-                ctx.fillStyle = arrowEl.color;
-                ctx.lineWidth = arrowEl.strokeWidth;
+                    maxY = Math.max(
+                        maxY,
+                        textEl.position.y + (textEl.height || textEl.fontSize)
+                    );
+                } else if (
+                    element.type === "line" ||
+                    element.type === "arrow"
+                ) {
+                    const lineEl = element as LineElement | ArrowElement;
+                    minX = Math.min(minX, lineEl.start.x, lineEl.end.x);
+                    minY = Math.min(minY, lineEl.start.y, lineEl.end.y);
+                    maxX = Math.max(maxX, lineEl.start.x, lineEl.end.x);
+                    maxY = Math.max(maxY, lineEl.start.y, lineEl.end.y);
+                }
+            });
 
-                // Draw line
-                const angle = Math.atan2(
-                    arrowEl.end.y - arrowEl.start.y,
-                    arrowEl.end.x - arrowEl.start.x
-                );
-                const arrowLength = 10;
-                const lineEndX =
-                    arrowEl.end.x - arrowLength * 0.8 * Math.cos(angle);
-                const lineEndY =
-                    arrowEl.end.y - arrowLength * 0.8 * Math.sin(angle);
+            // Add padding
+            const padding = 50;
+            minX -= padding;
+            minY -= padding;
+            maxX += padding;
+            maxY += padding;
 
-                ctx.beginPath();
-                ctx.moveTo(arrowEl.start.x, arrowEl.start.y);
-                ctx.lineTo(lineEndX, lineEndY);
-                ctx.stroke();
+            // Calculate scale to fit content
+            const contentWidth = maxX - minX;
+            const contentHeight = maxY - minY;
+            const scaleX = canvas.width / scale / contentWidth;
+            const scaleY = canvas.height / scale / contentHeight;
+            const exportScale = Math.min(scaleX, scaleY, 1); // Don't scale up
 
-                // Draw arrow head
-                const arrowAngle = Math.PI / 6;
-                const arrowHead1X =
-                    arrowEl.end.x - arrowLength * Math.cos(angle - arrowAngle);
-                const arrowHead1Y =
-                    arrowEl.end.y - arrowLength * Math.sin(angle - arrowAngle);
-                const arrowHead2X =
-                    arrowEl.end.x - arrowLength * Math.cos(angle + arrowAngle);
-                const arrowHead2Y =
-                    arrowEl.end.y - arrowLength * Math.sin(angle + arrowAngle);
+            // Center the content
+            const offsetX =
+                (canvas.width / scale - contentWidth * exportScale) / 2 -
+                minX * exportScale;
+            const offsetY =
+                (canvas.height / scale - contentHeight * exportScale) / 2 -
+                minY * exportScale;
 
-                ctx.beginPath();
-                ctx.moveTo(arrowEl.end.x, arrowEl.end.y);
-                ctx.lineTo(arrowHead1X, arrowHead1Y);
-                ctx.lineTo(arrowHead2X, arrowHead2Y);
-                ctx.closePath();
-                ctx.fill();
+            // Draw grid if requested (before elements)
+            if (includeGrid) {
+                ctx.save();
+                ctx.translate(offsetX, offsetY);
+                ctx.scale(exportScale, exportScale);
+
+                const gridSize = 20;
+                ctx.strokeStyle = "#99a8ad";
+                ctx.lineWidth = 1 / exportScale; // Adjust line width for scale
+                ctx.globalAlpha = 0.5;
+
+                // Calculate grid bounds
+                const gridMinX = Math.floor((minX - 100) / gridSize) * gridSize;
+                const gridMaxX = Math.ceil((maxX + 100) / gridSize) * gridSize;
+                const gridMinY = Math.floor((minY - 100) / gridSize) * gridSize;
+                const gridMaxY = Math.ceil((maxY + 100) / gridSize) * gridSize;
+
+                // Draw vertical lines
+                for (let x = gridMinX; x <= gridMaxX; x += gridSize) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, gridMinY);
+                    ctx.lineTo(x, gridMaxY);
+                    ctx.stroke();
+                }
+
+                // Draw horizontal lines
+                for (let y = gridMinY; y <= gridMaxY; y += gridSize) {
+                    ctx.beginPath();
+                    ctx.moveTo(gridMinX, y);
+                    ctx.lineTo(gridMaxX, y);
+                    ctx.stroke();
+                }
+
+                ctx.restore();
             }
 
-            ctx.restore();
-        });
+            // Render elements
+            state.elements.forEach((element) => {
+                ctx.save();
+                ctx.translate(offsetX, offsetY);
+                ctx.scale(exportScale, exportScale);
 
-        downloadCanvas(canvas);
-    }, [state.elements]);
+                if (element.type === "text") {
+                    const textEl = element as TextElement;
+                    ctx.font = `${textEl.bold ? "bold " : ""}${
+                        textEl.italic ? "italic " : ""
+                    }${textEl.fontSize}px ${textEl.fontFamily}`;
+                    ctx.fillStyle = textEl.color;
+                    ctx.textBaseline = "top";
+
+                    const lines = textEl.content.split("\n");
+                    lines.forEach((line: string, index: number) => {
+                        const lineY =
+                            textEl.position.y -
+                            textEl.fontSize +
+                            index * textEl.fontSize * 1.2;
+
+                        // Draw text
+                        ctx.fillText(line, textEl.position.x, lineY);
+
+                        // Draw underline if needed
+                        if (textEl.underline) {
+                            const textWidth = ctx.measureText(line).width;
+                            const underlineY = lineY + textEl.fontSize + 2;
+                            ctx.strokeStyle = textEl.color;
+                            ctx.lineWidth = Math.max(1, textEl.fontSize / 16);
+                            ctx.beginPath();
+                            ctx.moveTo(textEl.position.x, underlineY);
+                            ctx.lineTo(
+                                textEl.position.x + textWidth,
+                                underlineY
+                            );
+                            ctx.stroke();
+                        }
+                    });
+                } else if (element.type === "line") {
+                    const lineEl = element as LineElement;
+                    ctx.strokeStyle = lineEl.color;
+                    ctx.lineWidth = lineEl.strokeWidth;
+                    ctx.beginPath();
+                    ctx.moveTo(lineEl.start.x, lineEl.start.y);
+                    ctx.lineTo(lineEl.end.x, lineEl.end.y);
+                    ctx.stroke();
+                } else if (element.type === "arrow") {
+                    const arrowEl = element as ArrowElement;
+                    ctx.strokeStyle = arrowEl.color;
+                    ctx.fillStyle = arrowEl.color;
+                    ctx.lineWidth = arrowEl.strokeWidth;
+
+                    // Draw line
+                    const angle = Math.atan2(
+                        arrowEl.end.y - arrowEl.start.y,
+                        arrowEl.end.x - arrowEl.start.x
+                    );
+                    const arrowLength = 10;
+                    const lineEndX =
+                        arrowEl.end.x - arrowLength * 0.8 * Math.cos(angle);
+                    const lineEndY =
+                        arrowEl.end.y - arrowLength * 0.8 * Math.sin(angle);
+
+                    ctx.beginPath();
+                    ctx.moveTo(arrowEl.start.x, arrowEl.start.y);
+                    ctx.lineTo(lineEndX, lineEndY);
+                    ctx.stroke();
+
+                    // Draw arrow head
+                    const arrowAngle = Math.PI / 6;
+                    const arrowHead1X =
+                        arrowEl.end.x -
+                        arrowLength * Math.cos(angle - arrowAngle);
+                    const arrowHead1Y =
+                        arrowEl.end.y -
+                        arrowLength * Math.sin(angle - arrowAngle);
+                    const arrowHead2X =
+                        arrowEl.end.x -
+                        arrowLength * Math.cos(angle + arrowAngle);
+                    const arrowHead2Y =
+                        arrowEl.end.y -
+                        arrowLength * Math.sin(angle + arrowAngle);
+
+                    ctx.beginPath();
+                    ctx.moveTo(arrowEl.end.x, arrowEl.end.y);
+                    ctx.lineTo(arrowHead1X, arrowHead1Y);
+                    ctx.lineTo(arrowHead2X, arrowHead2Y);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+
+                ctx.restore();
+            });
+
+            downloadCanvas(canvas);
+        },
+        [state.elements]
+    );
 
     const downloadCanvas = (canvas: HTMLCanvasElement) => {
         canvas.toBlob((blob) => {
@@ -574,6 +646,263 @@ export const useWhiteboard = () => {
             }
         }, "image/png");
     };
+
+    // Take a screenshot for AI chat (returns base64 data URL)
+    const takeScreenshot = useCallback(
+        (options: { includeGrid?: boolean } = {}): Promise<string> => {
+            return new Promise((resolve) => {
+                // Use the same export logic but return data URL instead of downloading
+                const canvas = document.createElement("canvas");
+                const ctx = canvas.getContext("2d");
+                if (!ctx) {
+                    resolve("");
+                    return;
+                }
+
+                // Use medium quality for screenshots to balance size and quality
+                const scale = 1.5;
+                canvas.width = 1920 * scale;
+                canvas.height = 1080 * scale;
+                ctx.scale(scale, scale);
+
+                // Set white background
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale);
+
+                if (state.elements.length === 0) {
+                    resolve(canvas.toDataURL("image/png"));
+                    return;
+                }
+
+                // Calculate bounds (same logic as export)
+                let minX = Infinity,
+                    minY = Infinity,
+                    maxX = -Infinity,
+                    maxY = -Infinity;
+                state.elements.forEach((element) => {
+                    if (element.type === "text") {
+                        const textEl = element as TextElement;
+                        minX = Math.min(minX, textEl.position.x);
+                        minY = Math.min(
+                            minY,
+                            textEl.position.y - textEl.fontSize
+                        );
+                        maxX = Math.max(
+                            maxX,
+                            textEl.position.x + (textEl.width || 100)
+                        );
+                        maxY = Math.max(
+                            maxY,
+                            textEl.position.y +
+                                (textEl.height || textEl.fontSize)
+                        );
+                    } else if (
+                        element.type === "line" ||
+                        element.type === "arrow"
+                    ) {
+                        const lineEl = element as LineElement | ArrowElement;
+                        minX = Math.min(minX, lineEl.start.x, lineEl.end.x);
+                        minY = Math.min(minY, lineEl.start.y, lineEl.end.y);
+                        maxX = Math.max(maxX, lineEl.start.x, lineEl.end.x);
+                        maxY = Math.max(maxY, lineEl.start.y, lineEl.end.y);
+                    }
+                });
+
+                // Add padding and calculate scale
+                const padding = 50;
+                minX -= padding;
+                minY -= padding;
+                maxX += padding;
+                maxY += padding;
+                const contentWidth = maxX - minX;
+                const contentHeight = maxY - minY;
+                const scaleX = canvas.width / scale / contentWidth;
+                const scaleY = canvas.height / scale / contentHeight;
+                const exportScale = Math.min(scaleX, scaleY, 1);
+                const offsetX =
+                    (canvas.width / scale - contentWidth * exportScale) / 2 -
+                    minX * exportScale;
+                const offsetY =
+                    (canvas.height / scale - contentHeight * exportScale) / 2 -
+                    minY * exportScale;
+
+                // Draw grid if requested
+                if (options.includeGrid) {
+                    ctx.save();
+                    ctx.translate(offsetX, offsetY);
+                    ctx.scale(exportScale, exportScale);
+                    const gridSize = 20;
+                    ctx.strokeStyle = "#99a8ad";
+                    ctx.lineWidth = 1 / exportScale;
+                    ctx.globalAlpha = 0.5;
+                    const gridMinX =
+                        Math.floor((minX - 100) / gridSize) * gridSize;
+                    const gridMaxX =
+                        Math.ceil((maxX + 100) / gridSize) * gridSize;
+                    const gridMinY =
+                        Math.floor((minY - 100) / gridSize) * gridSize;
+                    const gridMaxY =
+                        Math.ceil((maxY + 100) / gridSize) * gridSize;
+                    for (let x = gridMinX; x <= gridMaxX; x += gridSize) {
+                        ctx.beginPath();
+                        ctx.moveTo(x, gridMinY);
+                        ctx.lineTo(x, gridMaxY);
+                        ctx.stroke();
+                    }
+                    for (let y = gridMinY; y <= gridMaxY; y += gridSize) {
+                        ctx.beginPath();
+                        ctx.moveTo(gridMinX, y);
+                        ctx.lineTo(gridMaxX, y);
+                        ctx.stroke();
+                    }
+                    ctx.restore();
+                }
+
+                // Render elements (same logic as export but simplified)
+                state.elements.forEach((element) => {
+                    ctx.save();
+                    ctx.translate(offsetX, offsetY);
+                    ctx.scale(exportScale, exportScale);
+
+                    if (element.type === "text") {
+                        const textEl = element as TextElement;
+                        ctx.font = `${textEl.bold ? "bold " : ""}${
+                            textEl.italic ? "italic " : ""
+                        }${textEl.fontSize}px ${textEl.fontFamily}`;
+                        ctx.fillStyle = textEl.color;
+                        ctx.textBaseline = "top";
+                        const lines = textEl.content.split("\n");
+                        lines.forEach((line: string, index: number) => {
+                            const lineY =
+                                textEl.position.y -
+                                textEl.fontSize +
+                                index * textEl.fontSize * 1.2;
+                            ctx.fillText(line, textEl.position.x, lineY);
+                            if (textEl.underline) {
+                                const textWidth = ctx.measureText(line).width;
+                                const underlineY = lineY + textEl.fontSize + 2;
+                                ctx.strokeStyle = textEl.color;
+                                ctx.lineWidth = Math.max(
+                                    1,
+                                    textEl.fontSize / 16
+                                );
+                                ctx.beginPath();
+                                ctx.moveTo(textEl.position.x, underlineY);
+                                ctx.lineTo(
+                                    textEl.position.x + textWidth,
+                                    underlineY
+                                );
+                                ctx.stroke();
+                            }
+                        });
+                    } else if (element.type === "line") {
+                        const lineEl = element as LineElement;
+                        ctx.strokeStyle = lineEl.color;
+                        ctx.lineWidth = lineEl.strokeWidth;
+                        ctx.beginPath();
+                        ctx.moveTo(lineEl.start.x, lineEl.start.y);
+                        ctx.lineTo(lineEl.end.x, lineEl.end.y);
+                        ctx.stroke();
+                    } else if (element.type === "arrow") {
+                        const arrowEl = element as ArrowElement;
+                        ctx.strokeStyle = arrowEl.color;
+                        ctx.fillStyle = arrowEl.color;
+                        ctx.lineWidth = arrowEl.strokeWidth;
+                        const angle = Math.atan2(
+                            arrowEl.end.y - arrowEl.start.y,
+                            arrowEl.end.x - arrowEl.start.x
+                        );
+                        const arrowLength = 10;
+                        const lineEndX =
+                            arrowEl.end.x - arrowLength * 0.8 * Math.cos(angle);
+                        const lineEndY =
+                            arrowEl.end.y - arrowLength * 0.8 * Math.sin(angle);
+                        ctx.beginPath();
+                        ctx.moveTo(arrowEl.start.x, arrowEl.start.y);
+                        ctx.lineTo(lineEndX, lineEndY);
+                        ctx.stroke();
+                        const arrowAngle = Math.PI / 6;
+                        const arrowHead1X =
+                            arrowEl.end.x -
+                            arrowLength * Math.cos(angle - arrowAngle);
+                        const arrowHead1Y =
+                            arrowEl.end.y -
+                            arrowLength * Math.sin(angle - arrowAngle);
+                        const arrowHead2X =
+                            arrowEl.end.x -
+                            arrowLength * Math.cos(angle + arrowAngle);
+                        const arrowHead2Y =
+                            arrowEl.end.y -
+                            arrowLength * Math.sin(angle + arrowAngle);
+                        ctx.beginPath();
+                        ctx.moveTo(arrowEl.end.x, arrowEl.end.y);
+                        ctx.lineTo(arrowHead1X, arrowHead1Y);
+                        ctx.lineTo(arrowHead2X, arrowHead2Y);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                    ctx.restore();
+                });
+
+                resolve(canvas.toDataURL("image/png"));
+            });
+        },
+        [state.elements]
+    );
+
+    // LLM Action functions
+    const gotoPosition = useCallback(
+        (x: number, y: number, scale: number) => {
+            updateViewBox({
+                x: x - window.innerWidth / 2 / scale,
+                y: y - window.innerHeight / 2 / scale,
+                zoom: scale,
+            });
+        },
+        [updateViewBox]
+    );
+
+    const gotoElement = useCallback(
+        (uuid: string, scale: number) => {
+            const element = state.elements.find((el) => el.id === uuid);
+            if (!element) {
+                console.warn(`Element with UUID ${uuid} not found`);
+                return;
+            }
+
+            // Calculate element center
+            let centerX: number, centerY: number;
+
+            if (element.type === "text") {
+                centerX = element.position.x + (element.width || 100) / 2;
+                centerY = element.position.y;
+            } else if (element.type === "line" || element.type === "arrow") {
+                centerX = (element.start.x + element.end.x) / 2;
+                centerY = (element.start.y + element.end.y) / 2;
+            } else {
+                centerX = 0;
+                centerY = 0;
+            }
+
+            // Navigate to element center
+            gotoPosition(centerX, centerY, scale);
+        },
+        [state.elements, gotoPosition]
+    );
+
+    const createElement = useCallback(
+        (element: WhiteboardElement) => {
+            addElement(element);
+        },
+        [addElement]
+    );
+
+    const deleteElement = useCallback((uuid: string) => {
+        setState((prev) => ({
+            ...prev,
+            elements: prev.elements.filter((el) => el.id !== uuid),
+        }));
+    }, []);
 
     return {
         state,
@@ -603,5 +932,11 @@ export const useWhiteboard = () => {
         exportToJSON,
         importFromJSON,
         exportToPNG,
+        takeScreenshot,
+        // LLM Actions
+        gotoPosition,
+        gotoElement,
+        createElement,
+        deleteElement,
     };
 };

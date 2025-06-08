@@ -5,12 +5,15 @@ import { useWhiteboard } from "@/hooks/useWhiteboard";
 import { Toolbar } from "./Toolbar";
 import { ContextToolbar } from "./ContextToolbar";
 import { ChatPopup } from "./ChatPopup";
+import { OverflowMenu } from "./OverflowMenu";
+import { SettingsPopup } from "./SettingsPopup";
 import {
     WhiteboardElement,
     Point,
     TextElement,
     LineElement,
     ArrowElement,
+    Tool,
 } from "@/types/whiteboard";
 import { snapToGrid, shouldSnapToGrid } from "@/utils/grid";
 
@@ -33,8 +36,8 @@ export const Whiteboard = () => {
         width: number;
         height: number;
     }>({ width: 0, height: 0 });
-    const [showGrid] = useState(true);
-    const [gridSnapping] = useState(true);
+    const [showGrid, setShowGrid] = useState(true);
+    const [gridSnapping, setGridSnapping] = useState(true);
     const [isCreatingTextBox, setIsCreatingTextBox] = useState(false);
     const [textBoxStartPos, setTextBoxStartPos] = useState<Point>({
         x: 0,
@@ -42,6 +45,17 @@ export const Whiteboard = () => {
     });
     // Add state for chat popup
     const [isChatOpen, setIsChatOpen] = useState(false);
+    const [isChatInputFocused, setIsChatInputFocused] = useState(false);
+
+    // Add state for overflow menu
+    const [showOverflowMenu, setShowOverflowMenu] = useState(false);
+    const [overflowMenuPosition, setOverflowMenuPosition] = useState({
+        x: 0,
+        y: 0,
+    });
+
+    // Add state for settings popup
+    const [showSettings, setShowSettings] = useState(false);
 
     // File input ref for import functionality
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -83,14 +97,66 @@ export const Whiteboard = () => {
         exportToJSON,
         importFromJSON,
         exportToPNG,
+        takeScreenshot,
+        // LLM Actions
+        gotoPosition,
+        gotoElement,
+        createElement,
+        deleteElement,
     } = useWhiteboard();
 
     const generateId = () => {
-        // Use timestamp + random for better uniqueness
-        const timestamp = Date.now().toString(36);
-        const random = Math.random().toString(36).substring(2, 7);
-        return `${timestamp}-${random}`;
+        // Generate a proper UUID for AI referencing
+        return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+            /[xy]/g,
+            function (c) {
+                const r = (Math.random() * 16) | 0;
+                const v = c == "x" ? r : (r & 0x3) | 0x8;
+                return v.toString(16);
+            }
+        );
     };
+
+    // Wrapper function to handle tool switching and deselection
+    const handleToolChange = useCallback(
+        (tool: Tool) => {
+            setActiveTool(tool);
+            setSelectedElementId(null); // Deselect any selected element
+            setEditingTextId(null); // Stop editing any text
+        },
+        [setActiveTool]
+    );
+
+    // Handle overflow menu toggle
+    const handleOverflowMenuToggle = useCallback((show: boolean) => {
+        if (show) {
+            // Calculate position for the menu (above the toolbar)
+            const menuWidth = 208; // min-w-52 = 208px
+            const menuHeight = 400; // Approximate menu height (generous estimate)
+            const viewportHeight = window.innerHeight;
+            const viewportWidth = window.innerWidth;
+
+            // Position the menu above the bottom toolbar with proper spacing
+            const bottomSpacing = 100; // Space from bottom to account for toolbar + margin (lowered by 20px)
+
+            setOverflowMenuPosition({
+                x: Math.max(
+                    16,
+                    Math.min(
+                        viewportWidth - menuWidth - 16,
+                        viewportWidth / 2 - menuWidth / 2
+                    )
+                ), // Center horizontally with edge constraints
+                y: Math.max(16, viewportHeight - bottomSpacing - menuHeight), // Position above toolbar with spacing
+            });
+        }
+        setShowOverflowMenu(show);
+    }, []);
+
+    // Handle settings
+    const handleSettings = useCallback(() => {
+        setShowSettings(true);
+    }, []);
 
     // Handle export to JSON
     const handleExportJSON = useCallback(() => {
@@ -272,44 +338,45 @@ export const Whiteboard = () => {
                 return;
             }
 
-            // First, check if clicking on an existing element (for any tool)
-            const clickedElement = state.elements.find((element) => {
-                if (element.type === "text") {
-                    const textEl = element as TextElement;
-                    return isPointInTextElement(canvasPos, textEl);
-                } else if (
-                    element.type === "line" ||
-                    element.type === "arrow"
-                ) {
-                    const lineEl = element as LineElement | ArrowElement;
-                    return getLinePointType(canvasPos, lineEl) !== null;
-                }
-                return false;
-            });
-
-            // If we clicked on an element
-            if (clickedElement) {
-                // Check if we're clicking on a resize handle for text elements
-                if (
-                    clickedElement.type === "text" &&
-                    selectedElementId === clickedElement.id
-                ) {
-                    const textEl = clickedElement as TextElement;
-                    if (isPointOnResizeHandle(canvasPos, textEl)) {
-                        // Start resizing
-                        setIsResizing(true);
-                        setResizeStartPos(canvasPos);
-                        const bounds = getTextElementBounds(textEl);
-                        setResizeStartBounds({
-                            width: bounds.width,
-                            height: bounds.height,
-                        });
-                        return;
+            // Only check for element selection in select and text modes
+            // In line/arrow modes, we want to create new elements even if clicking on existing ones
+            if (activeTool === "select" || activeTool === "text") {
+                const clickedElement = state.elements.find((element) => {
+                    if (element.type === "text") {
+                        const textEl = element as TextElement;
+                        return isPointInTextElement(canvasPos, textEl);
+                    } else if (
+                        element.type === "line" ||
+                        element.type === "arrow"
+                    ) {
+                        const lineEl = element as LineElement | ArrowElement;
+                        return getLinePointType(canvasPos, lineEl) !== null;
                     }
-                }
+                    return false;
+                });
 
-                // For text tool, just select the element (don't create new text)
-                if (activeTool === "text" || activeTool === "select") {
+                // If we clicked on an element in select/text mode
+                if (clickedElement) {
+                    // Check if we're clicking on a resize handle for text elements
+                    if (
+                        clickedElement.type === "text" &&
+                        selectedElementId === clickedElement.id
+                    ) {
+                        const textEl = clickedElement as TextElement;
+                        if (isPointOnResizeHandle(canvasPos, textEl)) {
+                            // Start resizing
+                            setIsResizing(true);
+                            setResizeStartPos(canvasPos);
+                            const bounds = getTextElementBounds(textEl);
+                            setResizeStartBounds({
+                                width: bounds.width,
+                                height: bounds.height,
+                            });
+                            return;
+                        }
+                    }
+
+                    // Select and prepare for dragging the element
                     setSelectedElementId(clickedElement.id);
                     setDraggedElement(clickedElement.id);
 
@@ -339,9 +406,6 @@ export const Whiteboard = () => {
                     }
                     return;
                 }
-                // For other tools, still allow selection but don't create new elements
-                setSelectedElementId(clickedElement.id);
-                return;
             }
 
             // If we didn't click on an element, handle based on active tool
@@ -447,31 +511,32 @@ export const Whiteboard = () => {
             const isMac = navigator.userAgent.toUpperCase().indexOf("MAC") >= 0;
             const cmdKey = isMac ? event.metaKey : event.ctrlKey;
 
-            // Tool shortcuts
-            if (!editingTextId && !cmdKey) {
+            // Tool shortcuts - disabled when chat input is focused
+            if (!editingTextId && !cmdKey && !isChatInputFocused) {
                 switch (event.key.toLowerCase()) {
                     case "v":
                         event.preventDefault();
-                        setActiveTool("select");
+                        handleToolChange("select");
                         break;
                     case "t":
                         event.preventDefault();
-                        setActiveTool("text");
+                        handleToolChange("text");
                         break;
                     case "f":
                         event.preventDefault();
-                        setActiveTool("arrow");
+                        handleToolChange("arrow");
                         break;
                     case "r":
                         event.preventDefault();
-                        setActiveTool("line");
+                        handleToolChange("line");
                         break;
                     case "m":
                         event.preventDefault();
                         // Toggle toolbar collapsed state
                         if (toolbarRef.current) {
                             toolbarRef.current.toggleCollapsed();
-                        }                        break;
+                        }
+                        break;
                 }
             }
 
@@ -566,7 +631,7 @@ export const Whiteboard = () => {
         redo,
         resetView,
         selectedElementId,
-        setActiveTool,
+        handleToolChange,
         setEditingTextId,
         setSelectedElementId,
         undo,
@@ -578,6 +643,7 @@ export const Whiteboard = () => {
         handleExportJSON,
         handleImportJSON,
         handleExportPNG,
+        isChatInputFocused,
     ]);
 
     const handleMouseMove = useCallback(
@@ -1356,7 +1422,7 @@ export const Whiteboard = () => {
             {/* Main bottom toolbar */}
             <Toolbar
                 activeTool={activeTool}
-                onToolChange={setActiveTool}
+                onToolChange={handleToolChange}
                 onZoomIn={() => {
                     if (svgRef.current) {
                         const rect = svgRef.current.getBoundingClientRect();
@@ -1385,12 +1451,9 @@ export const Whiteboard = () => {
                         zoomOut(centerPoint, true);
                     }
                 }}
-                onResetView={resetView}
-                onClearCanvas={clearCanvas}
                 onChatOpen={() => setIsChatOpen(!isChatOpen)}
-                onExportPNG={handleExportPNG}
-                onExportJSON={handleExportJSON}
-                onImportJSON={handleImportJSON}
+                showOverflowMenu={showOverflowMenu}
+                onOverflowMenuToggle={handleOverflowMenuToggle}
             />
 
             {/* Chat popup */}
@@ -1398,7 +1461,40 @@ export const Whiteboard = () => {
                 isOpen={isChatOpen}
                 onClose={() => setIsChatOpen(false)}
                 whiteboardState={state}
-                svgRef={svgRef}
+                onInputFocusChange={setIsChatInputFocused}
+                selectedElementId={selectedElementId}
+                onTakeScreenshot={takeScreenshot}
+                onGotoPosition={gotoPosition}
+                onGotoElement={gotoElement}
+                onCreateElement={createElement}
+                onDeleteElement={deleteElement}
+            />
+
+            {/* Overflow Menu */}
+            <OverflowMenu
+                isOpen={showOverflowMenu}
+                onClose={() => setShowOverflowMenu(false)}
+                onResetView={resetView}
+                onClearCanvas={clearCanvas}
+                onMinimize={() => {
+                    // TODO: Implement minimize functionality
+                    console.log("Minimize toolbar");
+                }}
+                onSettings={handleSettings}
+                onExportPNG={handleExportPNG}
+                onExportJSON={handleExportJSON}
+                onImportJSON={handleImportJSON}
+                position={overflowMenuPosition}
+            />
+
+            {/* Settings Popup */}
+            <SettingsPopup
+                isOpen={showSettings}
+                onClose={() => setShowSettings(false)}
+                showGrid={showGrid}
+                onToggleGrid={setShowGrid}
+                gridSnapping={gridSnapping}
+                onToggleGridSnapping={setGridSnapping}
             />
 
             {/* Rest of your component */}

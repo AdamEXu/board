@@ -1,20 +1,17 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Tool, Point } from "@/types/whiteboard";
-import { IconButton, ICONS, Icon } from "./Icon";
+import { IconButton, ICONS } from "./Icon";
 
 interface ToolbarProps {
     activeTool: Tool;
     onToolChange: (tool: Tool) => void;
     onZoomIn: (centerPoint?: Point, useButtons?: boolean) => void;
     onZoomOut: (centerPoint?: Point, useButtons?: boolean) => void;
-    onResetView: () => void;
-    onClearCanvas: () => void;
     onChatOpen?: () => void;
-    onExportPNG?: () => void;
-    onExportJSON?: () => void;
-    onImportJSON?: () => void;
+    showOverflowMenu?: boolean;
+    onOverflowMenuToggle?: (show: boolean) => void;
 }
 
 export const Toolbar = ({
@@ -22,12 +19,9 @@ export const Toolbar = ({
     onToolChange,
     onZoomIn,
     onZoomOut,
-    onResetView,
-    onClearCanvas,
     onChatOpen,
-    onExportPNG,
-    onExportJSON,
-    onImportJSON,
+    showOverflowMenu = false,
+    onOverflowMenuToggle,
 }: ToolbarProps) => {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [collapsedPosition, setCollapsedPosition] = useState<
@@ -39,8 +33,6 @@ export const Toolbar = ({
     >("bottom-left");
     const [isDragging, setIsDragging] = useState(false);
     const [hasDragged, setHasDragged] = useState(false);
-    const [showOverflowMenu, setShowOverflowMenu] = useState(false);
-    const overflowMenuRef = useRef<HTMLDivElement>(null);
 
     // Load collapsed position from localStorage on mount
     useEffect(() => {
@@ -88,26 +80,6 @@ export const Toolbar = ({
             );
         }
     }, [collapsedPosition]);
-
-    // Close overflow menu when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (
-                overflowMenuRef.current &&
-                !overflowMenuRef.current.contains(event.target as Node)
-            ) {
-                setShowOverflowMenu(false);
-            }
-        };
-
-        if (showOverflowMenu) {
-            document.addEventListener("mousedown", handleClickOutside);
-        }
-
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
-    }, [showOverflowMenu]);
 
     // Listen for M key to toggle toolbar
     useEffect(() => {
@@ -223,34 +195,6 @@ export const Toolbar = ({
         document.addEventListener("mouseup", handleMouseUp);
     };
 
-    const handleClearCanvas = () => {
-        if (
-            window.confirm(
-                "Are you sure you want to clear the entire canvas? This action cannot be undone."
-            )
-        ) {
-            onClearCanvas();
-        }
-        setShowOverflowMenu(false);
-    };
-
-    const handleExportPNG = () => {
-        if (onExportPNG) {
-            onExportPNG();
-        }
-        setShowOverflowMenu(false);
-    };
-
-    const handleResetView = () => {
-        onResetView();
-        setShowOverflowMenu(false);
-    };
-
-    const handleMinimize = () => {
-        setIsCollapsed(true);
-        setShowOverflowMenu(false);
-    };
-
     const tools = [
         {
             id: "select" as Tool,
@@ -358,78 +302,16 @@ export const Toolbar = ({
                     <div className="w-px h-6 bg-white/30 opacity-60" />
 
                     {/* Overflow Menu */}
-                    <div className="relative" ref={overflowMenuRef}>
+                    <div className="relative">
                         <IconButton
                             icon={ICONS.ELLIPSIS}
                             onClick={() =>
-                                setShowOverflowMenu(!showOverflowMenu)
+                                onOverflowMenuToggle?.(!showOverflowMenu)
                             }
                             label="More Options"
                             size={16}
                             active={showOverflowMenu}
                         />
-
-                        {showOverflowMenu && (
-                            <div className="absolute bottom-full mb-2 right-0 bg-white/95 backdrop-blur-md border border-white/30 rounded-lg shadow-lg py-2 min-w-48 z-50">
-                                <button
-                                    onClick={handleResetView}
-                                    className="w-full px-4 py-2 text-left text-sm hover:bg-black/5 flex items-center gap-3"
-                                >
-                                    <Icon name={ICONS.RESET_VIEW} size={16} />
-                                    Reset View
-                                </button>
-                                <button
-                                    onClick={handleClearCanvas}
-                                    className="w-full px-4 py-2 text-left text-sm hover:bg-black/5 flex items-center gap-3 text-red-600"
-                                >
-                                    <Icon name={ICONS.CLEAR} size={16} />
-                                    Clear Canvas
-                                </button>
-                                <button
-                                    onClick={handleMinimize}
-                                    className="w-full px-4 py-2 text-left text-sm hover:bg-black/5 flex items-center gap-3"
-                                >
-                                    <Icon name={ICONS.MINIMIZE} size={16} />
-                                    Minimize Toolbar
-                                </button>
-                                {onExportPNG && (
-                                    <button
-                                        onClick={handleExportPNG}
-                                        className="w-full px-4 py-2 text-left text-sm hover:bg-black/5 flex items-center gap-3"
-                                    >
-                                        <Icon
-                                            name={ICONS.EXPORT_PNG}
-                                            size={16}
-                                        />
-                                        Export as PNG
-                                    </button>
-                                )}
-                                {onExportJSON && (
-                                    <button
-                                        onClick={() => {
-                                            onExportJSON();
-                                            setShowOverflowMenu(false);
-                                        }}
-                                        className="w-full px-4 py-2 text-left text-sm hover:bg-black/5 flex items-center gap-3"
-                                    >
-                                        <Icon name={ICONS.EXPORT} size={16} />
-                                        Export as JSON
-                                    </button>
-                                )}
-                                {onImportJSON && (
-                                    <button
-                                        onClick={() => {
-                                            onImportJSON();
-                                            setShowOverflowMenu(false);
-                                        }}
-                                        className="w-full px-4 py-2 text-left text-sm hover:bg-black/5 flex items-center gap-3"
-                                    >
-                                        <Icon name={ICONS.IMPORT} size={16} />
-                                        Import JSON
-                                    </button>
-                                )}
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>

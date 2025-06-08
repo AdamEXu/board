@@ -67,9 +67,13 @@ export const ContextToolbar = ({
             <>
                 {/* Font Size */}
                 <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600 font-medium">
-                        Size:
-                    </span>
+                    <IconButton
+                        icon={ICONS.TEXT_SIZE}
+                        label="Font Size"
+                        size={16}
+                        className="w-8 h-8 pointer-events-none"
+                        tooltipDirection="down"
+                    />
                     <select
                         className="px-2 py-1 rounded bg-white/20 backdrop-blur-sm border border-white/20 text-sm"
                         value={currentFontSize}
@@ -121,6 +125,7 @@ export const ContextToolbar = ({
                         active={isBold}
                         label="Bold"
                         size={16}
+                        tooltipDirection="down"
                     />
                     <IconButton
                         icon={ICONS.ITALIC}
@@ -139,6 +144,7 @@ export const ContextToolbar = ({
                         active={isItalic}
                         label="Italic"
                         size={16}
+                        tooltipDirection="down"
                     />
                     <IconButton
                         icon={ICONS.UNDERLINE}
@@ -159,6 +165,7 @@ export const ContextToolbar = ({
                         active={isUnderline}
                         label="Underline"
                         size={16}
+                        tooltipDirection="down"
                     />
                 </div>
 
@@ -167,9 +174,13 @@ export const ContextToolbar = ({
 
                 {/* Font Color */}
                 <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600 font-medium">
-                        Color:
-                    </span>
+                    <IconButton
+                        icon={ICONS.COLOR_PALETTE}
+                        label="Font Color"
+                        size={16}
+                        className="w-8 h-8 pointer-events-none"
+                        tooltipDirection="down"
+                    />
                     <input
                         type="color"
                         value={currentColor}
@@ -216,9 +227,13 @@ export const ContextToolbar = ({
             <>
                 {/* Line Weight */}
                 <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600 font-medium">
-                        Weight:
-                    </span>
+                    <IconButton
+                        icon={ICONS.LINE_WEIGHT}
+                        label="Line Weight"
+                        size={16}
+                        className="w-8 h-8 pointer-events-none"
+                        tooltipDirection="down"
+                    />
                     <select
                         className="px-2 py-1 rounded bg-white/20 backdrop-blur-sm border border-white/20 text-sm"
                         value={currentStrokeWidth}
@@ -253,9 +268,13 @@ export const ContextToolbar = ({
 
                 {/* Line Color */}
                 <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600 font-medium">
-                        Color:
-                    </span>
+                    <IconButton
+                        icon={ICONS.COLOR_PALETTE}
+                        label="Line Color"
+                        size={16}
+                        className="w-8 h-8 pointer-events-none"
+                        tooltipDirection="down"
+                    />
                     <input
                         type="color"
                         value={currentColor}
@@ -292,6 +311,7 @@ export const ContextToolbar = ({
                             label="Undo"
                             shortcut={["⌘", "Z"]}
                             size={16}
+                            tooltipDirection="down"
                         />
                         <IconButton
                             icon={ICONS.REDO}
@@ -300,6 +320,7 @@ export const ContextToolbar = ({
                             label="Redo"
                             shortcut={["⌘", "⇧", "Z"]}
                             size={16}
+                            tooltipDirection="down"
                         />
                     </div>
 

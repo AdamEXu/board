@@ -130,21 +130,35 @@ const Tooltip = ({
     children,
     label,
     shortcut,
+    direction = "up",
 }: {
     children: React.ReactNode;
     label: string;
     shortcut?: string[];
+    direction?: "up" | "down";
 }) => {
+    const tooltipClasses =
+        direction === "up"
+            ? "absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2"
+            : "absolute top-full left-1/2 transform -translate-x-1/2 mt-2";
+
+    const arrowClasses =
+        direction === "up"
+            ? "absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"
+            : "absolute bottom-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900";
+
     return (
         <div className="group relative">
             {children}
-            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+            <div
+                className={`${tooltipClasses} px-3 py-2 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50`}
+            >
                 <div className="flex items-center gap-2">
                     <span>{label}</span>
                     {shortcut && <KeyboardShortcut keys={shortcut} />}
                 </div>
                 {/* Arrow */}
-                <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                <div className={arrowClasses}></div>
             </div>
         </div>
     );
@@ -162,6 +176,7 @@ export const IconButton = ({
     className = "",
     label,
     shortcut,
+    tooltipDirection = "up",
     ...iconProps
 }: {
     icon: string;
@@ -174,6 +189,7 @@ export const IconButton = ({
     className?: string;
     label?: string;
     shortcut?: string[];
+    tooltipDirection?: "up" | "down";
 } & Omit<IconProps, "name" | "size" | "disabled" | "loading">) => {
     const buttonContent = (
         <button
@@ -190,7 +206,7 @@ export const IconButton = ({
                 focus:outline-none focus:ring-2 focus:ring-blue-500/50
                 ${
                     active
-                        ? "bg-white/30 text-gray-900 shadow-sm"
+                        ? "bg-white/30 text-gray-900 shadow-lg"
                         : "text-gray-700 hover:text-gray-900"
                 }
                 ${
@@ -216,7 +232,11 @@ export const IconButton = ({
 
     if (label) {
         return (
-            <Tooltip label={label} shortcut={shortcut}>
+            <Tooltip
+                label={label}
+                shortcut={shortcut}
+                direction={tooltipDirection}
+            >
                 {buttonContent}
             </Tooltip>
         );
@@ -249,4 +269,10 @@ export const ICONS = {
     EXPORT: "square.and.arrow.up.svg",
     IMPORT: "square.and.arrow.down.svg",
     EXPORT_PNG: "photo.badge.arrow.down.fill.svg",
+    TEXT_SIZE: "textformat.size.svg",
+    COLOR_PALETTE: "paintpalette.svg",
+    LINE_WEIGHT: "lineweight.svg",
+    CLOSE: "square.arrowtriangle.4.outward.svg",
+    GRID: "display.svg", // Using display icon for grid
+    MAGNET: "sparkles.rectangle.stack.svg", // Using sparkles for magnet/snapping
 } as const;
