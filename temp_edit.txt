@@ -1,0 +1,1 @@
+Need to add onExportPNG={handleExportPNG} to the Toolbar component props in Whiteboard.tsx around line 1380-1383

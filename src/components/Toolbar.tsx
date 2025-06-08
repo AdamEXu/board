@@ -109,6 +109,32 @@ export const Toolbar = ({
         };
     }, [showOverflowMenu]);
 
+    // Listen for M key to toggle toolbar
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (
+                event.key.toLowerCase() === "m" &&
+                !event.ctrlKey &&
+                !event.metaKey &&
+                !event.altKey
+            ) {
+                // Only toggle if not in a text input
+                const activeElement = document.activeElement;
+                if (
+                    activeElement &&
+                    (activeElement.tagName === "INPUT" ||
+                        activeElement.tagName === "TEXTAREA")
+                ) {
+                    return;
+                }
+                event.preventDefault();
+                setIsCollapsed(!isCollapsed);
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [isCollapsed]);
     // Get position styles for collapsed toolbar
     const getCollapsedPositionStyles = () => {
         const baseStyles =
@@ -371,7 +397,10 @@ export const Toolbar = ({
                                         onClick={handleExportPNG}
                                         className="w-full px-4 py-2 text-left text-sm hover:bg-black/5 flex items-center gap-3"
                                     >
-                                        <Icon name={ICONS.EXPORT} size={16} />
+                                        <Icon
+                                            name={ICONS.EXPORT_PNG}
+                                            size={16}
+                                        />
                                         Export as PNG
                                     </button>
                                 )}

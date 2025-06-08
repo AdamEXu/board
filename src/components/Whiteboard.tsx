@@ -46,6 +46,8 @@ export const Whiteboard = () => {
     // File input ref for import functionality
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Toolbar ref for M key toggle
+    const toolbarRef = useRef<{ toggleCollapsed: () => void }>(null);
     // Touch/pinch state for mobile zoom
     const [touchState, setTouchState] = useState<{
         touches: React.Touch[];
@@ -466,9 +468,9 @@ export const Whiteboard = () => {
                     case "m":
                         event.preventDefault();
                         // Toggle toolbar collapsed state
-                        // We need to access the toolbar's state somehow
-                        // For now, we'll add this functionality to the Toolbar component
-                        break;
+                        if (toolbarRef.current) {
+                            toolbarRef.current.toggleCollapsed();
+                        }                        break;
                 }
             }
 
@@ -521,8 +523,8 @@ export const Whiteboard = () => {
                     case "e":
                         event.preventDefault();
                         if (event.shiftKey) {
-                            // Cmd+Shift+E for export PNG (if implemented)
-                            // TODO: Add PNG export functionality
+                            // Cmd+Shift+E for export PNG
+                            handleExportPNG();
                         } else {
                             // Cmd+E for export JSON
                             handleExportJSON();
@@ -1315,7 +1317,7 @@ export const Whiteboard = () => {
     };
 
     return (
-        <div className="relative w-full h-screen overflow-hidden bg-gray-50">
+        <div className="whiteboard-container relative w-full h-screen overflow-hidden bg-gray-50">
             {/* Context-sensitive top toolbar */}
             <ContextToolbar
                 activeTool={activeTool}
@@ -1378,6 +1380,7 @@ export const Whiteboard = () => {
                 onResetView={resetView}
                 onClearCanvas={clearCanvas}
                 onChatOpen={() => setIsChatOpen(!isChatOpen)}
+                onExportPNG={handleExportPNG}
                 onExportJSON={handleExportJSON}
                 onImportJSON={handleImportJSON}
             />
