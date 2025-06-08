@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
     WhiteboardState,
     WhiteboardElement,
+    TextElement,
+    LineElement,
+    ArrowElement,
     Tool,
     Point,
 } from "@/types/whiteboard";
@@ -401,73 +404,176 @@ export const useWhiteboard = () => {
         [historyIndex, state.elements]
     );
 
-    // Export whiteboard as PNG by taking a screenshot
-    // Export whiteboard as PNG by taking a screenshot
-    const exportToPNG = useCallback(async () => {
-        try {
-            // Hide UI elements temporarily
-            const toolbars = document.querySelectorAll('[class*="fixed"], [class*="absolute"]');
-            const hiddenElements: { element: Element; originalDisplay: string }[] = [];
-            
-            toolbars.forEach((element) => {
-                const htmlElement = element as HTMLElement;
-                // Skip the main whiteboard container and SVG
-                if (htmlElement.closest('.whiteboard-container') && htmlElement.tagName !== 'SVG') {
-                    hiddenElements.push({
-                        element: htmlElement,
-                        originalDisplay: htmlElement.style.display
-                    });
-                    htmlElement.style.display = 'none';
-                }
-            });
+    // Export whiteboard as PNG
+    const exportToPNG = useCallback(() => {
+        // Create a temporary canvas to render the SVG
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
 
-            // Wait a brief moment for the UI to hide
-            await new Promise(resolve => setTimeout(resolve, 100));
+        // Set canvas size (you can adjust this for different resolutions)
+        const scale = 2; // Higher scale for better quality
+        canvas.width = 1920 * scale;
+        canvas.height = 1080 * scale;
 
-            // Use html2canvas to capture the whiteboard
-            const html2canvas = (await import('html2canvas')).default;
-            
-            // Find the whiteboard container
-            const whiteboardContainer = document.querySelector('.whiteboard-container') as HTMLElement;
-            if (!whiteboardContainer) {
-                throw new Error('Whiteboard container not found');
+        // Scale the context for high DPI
+        ctx.scale(scale, scale);
+
+        // Set white background
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale);
+
+        // Calculate bounds of all elements to center the export
+        if (state.elements.length === 0) {
+            // If no elements, just export empty canvas
+            downloadCanvas(canvas);
+            return;
+        }
+
+        let minX = Infinity,
+            minY = Infinity,
+            maxX = -Infinity,
+            maxY = -Infinity;
+
+        state.elements.forEach((element) => {
+            if (element.type === "text") {
+                const textEl = element as TextElement;
+                minX = Math.min(minX, textEl.position.x);
+                minY = Math.min(minY, textEl.position.y - textEl.fontSize);
+                maxX = Math.max(
+                    maxX,
+                    textEl.position.x + (textEl.width || 100)
+                );
+                maxY = Math.max(
+                    maxY,
+                    textEl.position.y + (textEl.height || textEl.fontSize)
+                );
+            } else if (element.type === "line" || element.type === "arrow") {
+                const lineEl = element as LineElement | ArrowElement;
+                minX = Math.min(minX, lineEl.start.x, lineEl.end.x);
+                minY = Math.min(minY, lineEl.start.y, lineEl.end.y);
+                maxX = Math.max(maxX, lineEl.start.x, lineEl.end.x);
+                maxY = Math.max(maxY, lineEl.start.y, lineEl.end.y);
+            }
+        });
+
+        // Add padding
+        const padding = 50;
+        minX -= padding;
+        minY -= padding;
+        maxX += padding;
+        maxY += padding;
+
+        // Calculate scale to fit content
+        const contentWidth = maxX - minX;
+        const contentHeight = maxY - minY;
+        const scaleX = canvas.width / scale / contentWidth;
+        const scaleY = canvas.height / scale / contentHeight;
+        const exportScale = Math.min(scaleX, scaleY, 1); // Don't scale up
+
+        // Center the content
+        const offsetX =
+            (canvas.width / scale - contentWidth * exportScale) / 2 -
+            minX * exportScale;
+        const offsetY =
+            (canvas.height / scale - contentHeight * exportScale) / 2 -
+            minY * exportScale;
+
+        // Render elements
+        state.elements.forEach((element) => {
+            ctx.save();
+            ctx.translate(offsetX, offsetY);
+            ctx.scale(exportScale, exportScale);
+
+            if (element.type === "text") {
+                const textEl = element as TextElement;
+                ctx.font = `${textEl.bold ? "bold " : ""}${
+                    textEl.italic ? "italic " : ""
+                }${textEl.fontSize}px ${textEl.fontFamily}`;
+                ctx.fillStyle = textEl.color;
+                ctx.textBaseline = "top";
+
+                const lines = textEl.content.split("\n");
+                lines.forEach((line: string, index: number) => {
+                    ctx.fillText(
+                        line,
+                        textEl.position.x,
+                        textEl.position.y -
+                            textEl.fontSize +
+                            index * textEl.fontSize * 1.2
+                    );
+                });
+            } else if (element.type === "line") {
+                const lineEl = element as LineElement;
+                ctx.strokeStyle = lineEl.color;
+                ctx.lineWidth = lineEl.strokeWidth;
+                ctx.beginPath();
+                ctx.moveTo(lineEl.start.x, lineEl.start.y);
+                ctx.lineTo(lineEl.end.x, lineEl.end.y);
+                ctx.stroke();
+            } else if (element.type === "arrow") {
+                const arrowEl = element as ArrowElement;
+                ctx.strokeStyle = arrowEl.color;
+                ctx.fillStyle = arrowEl.color;
+                ctx.lineWidth = arrowEl.strokeWidth;
+
+                // Draw line
+                const angle = Math.atan2(
+                    arrowEl.end.y - arrowEl.start.y,
+                    arrowEl.end.x - arrowEl.start.x
+                );
+                const arrowLength = 10;
+                const lineEndX =
+                    arrowEl.end.x - arrowLength * 0.8 * Math.cos(angle);
+                const lineEndY =
+                    arrowEl.end.y - arrowLength * 0.8 * Math.sin(angle);
+
+                ctx.beginPath();
+                ctx.moveTo(arrowEl.start.x, arrowEl.start.y);
+                ctx.lineTo(lineEndX, lineEndY);
+                ctx.stroke();
+
+                // Draw arrow head
+                const arrowAngle = Math.PI / 6;
+                const arrowHead1X =
+                    arrowEl.end.x - arrowLength * Math.cos(angle - arrowAngle);
+                const arrowHead1Y =
+                    arrowEl.end.y - arrowLength * Math.sin(angle - arrowAngle);
+                const arrowHead2X =
+                    arrowEl.end.x - arrowLength * Math.cos(angle + arrowAngle);
+                const arrowHead2Y =
+                    arrowEl.end.y - arrowLength * Math.sin(angle + arrowAngle);
+
+                ctx.beginPath();
+                ctx.moveTo(arrowEl.end.x, arrowEl.end.y);
+                ctx.lineTo(arrowHead1X, arrowHead1Y);
+                ctx.lineTo(arrowHead2X, arrowHead2Y);
+                ctx.closePath();
+                ctx.fill();
             }
 
-            const canvas = await html2canvas(whiteboardContainer, {
-                backgroundColor: '#ffffff',
-                scale: 2, // High DPI
-                useCORS: true,
-                allowTaint: true,
-                logging: false,
-                width: whiteboardContainer.offsetWidth,
-                height: whiteboardContainer.offsetHeight,
-            });
+            ctx.restore();
+        });
 
-            // Restore UI elements
-            hiddenElements.forEach(({ element, originalDisplay }) => {
-                (element as HTMLElement).style.display = originalDisplay;
-            });
+        downloadCanvas(canvas);
+    }, [state.elements]);
 
-            // Download the canvas as PNG
-            canvas.toBlob((blob) => {
-                if (blob) {
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `whiteboard-${new Date().toISOString().split('T')[0]}.png`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-                }
-            }, 'image/png');
-
-        } catch (error) {
-            console.error('Failed to export PNG:', error);
-            alert('Failed to export PNG. Please try again.');
-        }
-    }, []);
-
+    const downloadCanvas = (canvas: HTMLCanvasElement) => {
+        canvas.toBlob((blob) => {
+            if (blob) {
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `whiteboard-${
+                    new Date().toISOString().split("T")[0]
+                }.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }
+        }, "image/png");
+    };
 
     return {
         state,
