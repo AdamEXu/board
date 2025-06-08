@@ -437,6 +437,7 @@ export const Whiteboard = () => {
             setEditingTextId,
             setSelectedElementId,
             isPointInTextElement,
+            updateElement,
         ]
     );
 
@@ -574,6 +575,9 @@ export const Whiteboard = () => {
         state.viewBox.x,
         state.viewBox.y,
         state.viewBox.zoom,
+        handleExportJSON,
+        handleImportJSON,
+        handleExportPNG,
     ]);
 
     const handleMouseMove = useCallback(
@@ -844,6 +848,10 @@ export const Whiteboard = () => {
         setDragOffset,
         setIsPanning,
         setIsResizing,
+        selectedElementId,
+        state.elements,
+        updateElement,
+        setDraggedLinePoint,
     ]);
 
     const handleWheel = useCallback(
@@ -1317,7 +1325,7 @@ export const Whiteboard = () => {
     };
 
     return (
-        <div className="whiteboard-container relative w-full h-screen overflow-hidden bg-gray-50">
+        <div className="whiteboard-container relative w-full h-screen overflow-hidden bg-gray-50 whiteboard-container">
             {/* Context-sensitive top toolbar */}
             <ContextToolbar
                 activeTool={activeTool}
@@ -1389,6 +1397,8 @@ export const Whiteboard = () => {
             <ChatPopup
                 isOpen={isChatOpen}
                 onClose={() => setIsChatOpen(false)}
+                whiteboardState={state}
+                svgRef={svgRef}
             />
 
             {/* Rest of your component */}
