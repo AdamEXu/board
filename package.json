@@ -10,7 +10,7 @@
     },
     "dependencies": {
         "html2canvas": "^1.4.1",
-        "next": "15.3.3",
+        "next": "15.5.28",
         "openai": "^5.1.1",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
@@ -25,8 +25,11 @@
         "@types/react-dom": "^19",
         "autoprefixer": "^10.4.21",
         "eslint": "^9",
-        "eslint-config-next": "15.3.3",
+        "eslint-config-next": "15.5.28",
         "postcss": "^8.5.4",
         "typescript": "^5"
+    },
+    "overrides": {
+        "sharp": "0.35.5"
     }
 }
